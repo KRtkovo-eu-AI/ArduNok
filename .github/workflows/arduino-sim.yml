@@ -1,0 +1,58 @@
+name: Arduino build and simulate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install arduino-cli
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=$HOME/bin sh
+          echo "$HOME/bin" >> $GITHUB_PATH
+      - name: Set up Arduino core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+      - name: Install Arduino libraries
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install "Adafruit GFX Library" "Adafruit PCD8544 Nokia 5110 LCD library"
+      - name: Compile firmware and check memory
+        run: |
+          set -euo pipefail
+          arduino-cli compile --fqbn arduino:avr:mega --build-path build \
+            --libraries Arduino/Libraries \
+            Arduino/Firmware-ardunok/Firmware-ardunok.ino | tee build.log
+          used=$(grep -oP 'Global variables use \K\d+' build.log)
+          max=$(grep -oP 'Global variables use.*Maximum is \K\d+' build.log)
+          percent=$((used * 100 / max))
+          echo "Dynamic memory usage: ${percent}%"
+          {
+            echo "### Build report";
+            echo "* Dynamic memory usage: ${percent}% (${used} of ${max} bytes)";
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$percent" -ge 95 ]; then
+            echo "Memory usage exceeds safe threshold"
+            exit 1
+          fi
+      - name: Run AVR simulation
+        run: |
+          set -euo pipefail
+          sudo apt-get update && sudo apt-get install -y simavr
+          test -f build/Firmware-ardunok.ino.elf
+          if ! timeout 5s simavr -m atmega2560 -f 16000000 build/Firmware-ardunok.ino.elf; then
+            status=$?
+            if [ "$status" -ne 124 ]; then
+              echo "simavr failed"
+              exit "$status"
+            fi
+          fi
+          {
+            echo "### Simulation";
+            echo "* simavr ran for 5 seconds";
+          } >> "$GITHUB_STEP_SUMMARY"
