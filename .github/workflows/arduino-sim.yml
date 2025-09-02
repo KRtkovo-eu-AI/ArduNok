@@ -1,0 +1,38 @@
+name: Arduino build and simulate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=$HOME/bin sh
+          echo "$HOME/bin" >> $GITHUB_PATH
+      - name: Set up Arduino core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+      - name: Compile firmware and check memory
+        run: |
+          set -e
+          arduino-cli compile --fqbn arduino:avr:mega --build-path build Arduino/Firmware-ardunok/Firmware-ardunok.ino | tee build.log
+          used=$(grep "Global variables use" build.log | awk '{print $5}')
+          max=$(grep "Global variables use" build.log | awk '{print $10}')
+          percent=$((used * 100 / max))
+          echo "Dynamic memory usage: ${percent}%"
+          if [ "$percent" -ge 95 ]; then
+            echo "Memory usage exceeds safe threshold"
+            exit 1
+          fi
+      - name: Run AVR simulation
+        run: |
+          sudo apt-get update && sudo apt-get install -y simavr
+          simavr -m atmega2560 -f 16000000 build/Firmware-ardunok.ino.elf &
+          pid=$!
+          sleep 5
+          kill $pid || true
