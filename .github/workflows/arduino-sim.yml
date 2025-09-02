@@ -20,20 +20,33 @@ jobs:
           arduino-cli core install arduino:avr
       - name: Compile firmware and check memory
         run: |
-          set -e
+          set -euo pipefail
           arduino-cli compile --fqbn arduino:avr:mega --build-path build Arduino/Firmware-ardunok/Firmware-ardunok.ino | tee build.log
           used=$(grep "Global variables use" build.log | awk '{print $5}')
           max=$(grep "Global variables use" build.log | awk '{print $10}')
           percent=$((used * 100 / max))
           echo "Dynamic memory usage: ${percent}%"
+          {
+            echo "### Build report";
+            echo "* Dynamic memory usage: ${percent}% (${used} of ${max} bytes)";
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ "$percent" -ge 95 ]; then
             echo "Memory usage exceeds safe threshold"
             exit 1
           fi
       - name: Run AVR simulation
         run: |
+          set -euo pipefail
           sudo apt-get update && sudo apt-get install -y simavr
-          simavr -m atmega2560 -f 16000000 build/Firmware-ardunok.ino.elf &
-          pid=$!
-          sleep 5
-          kill $pid || true
+          test -f build/Firmware-ardunok.ino.elf
+          if ! timeout 5s simavr -m atmega2560 -f 16000000 build/Firmware-ardunok.ino.elf; then
+            status=$?
+            if [ "$status" -ne 124 ]; then
+              echo "simavr failed"
+              exit "$status"
+            fi
+          fi
+          {
+            echo "### Simulation";
+            echo "* simavr ran for 5 seconds";
+          } >> "$GITHUB_STEP_SUMMARY"

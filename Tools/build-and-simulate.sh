@@ -19,10 +19,17 @@ if [ "$percent" -ge 95 ]; then
 fi
 
 if command -v simavr >/dev/null 2>&1; then
-  simavr -m atmega2560 -f 16000000 "$BUILD_DIR/Firmware-ardunok.ino.elf" &
-  pid=$!
-  sleep 5
-  kill $pid || true
+  if [ ! -f "$BUILD_DIR/Firmware-ardunok.ino.elf" ]; then
+    echo "Firmware ELF not found"
+    exit 1
+  fi
+  if ! timeout 5s simavr -m atmega2560 -f 16000000 "$BUILD_DIR/Firmware-ardunok.ino.elf"; then
+    status=$?
+    if [ "$status" -ne 124 ]; then
+      echo "Simulation failed"
+      exit "$status"
+    fi
+  fi
 else
   echo "simavr not installed; skipping simulation"
 fi
