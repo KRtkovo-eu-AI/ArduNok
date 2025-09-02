@@ -18,10 +18,16 @@ jobs:
         run: |
           arduino-cli core update-index
           arduino-cli core install arduino:avr
+      - name: Install Arduino libraries
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install "Adafruit GFX Library" "Adafruit PCD8544 Nokia 5110 LCD library"
       - name: Compile firmware and check memory
         run: |
           set -euo pipefail
-          arduino-cli compile --fqbn arduino:avr:mega --build-path build Arduino/Firmware-ardunok/Firmware-ardunok.ino | tee build.log
+          arduino-cli compile --fqbn arduino:avr:mega --build-path build \
+            --libraries Arduino/Libraries \
+            Arduino/Firmware-ardunok/Firmware-ardunok.ino | tee build.log
           used=$(grep "Global variables use" build.log | awk '{print $5}')
           max=$(grep "Global variables use" build.log | awk '{print $10}')
           percent=$((used * 100 / max))

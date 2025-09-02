@@ -4,10 +4,14 @@ set -euo pipefail
 SKETCH="Arduino/Firmware-ardunok/Firmware-ardunok.ino"
 FQBN="arduino:avr:mega"
 BUILD_DIR="build"
+LIB_DIR="Arduino/Libraries"
 
 arduino-cli core update-index
 arduino-cli core install arduino:avr
-arduino-cli compile --fqbn "$FQBN" --build-path "$BUILD_DIR" "$SKETCH" | tee build.log
+arduino-cli lib update-index
+arduino-cli lib install "Adafruit GFX Library" "Adafruit PCD8544 Nokia 5110 LCD library"
+
+arduino-cli compile --fqbn "$FQBN" --build-path "$BUILD_DIR" --libraries "$LIB_DIR" "$SKETCH" | tee build.log
 
 used=$(grep "Global variables use" build.log | awk '{print $5}')
 max=$(grep "Global variables use" build.log | awk '{print $10}')
