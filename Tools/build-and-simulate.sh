@@ -13,8 +13,8 @@ arduino-cli lib install "Adafruit GFX Library" "Adafruit PCD8544 Nokia 5110 LCD 
 
 arduino-cli compile --fqbn "$FQBN" --build-path "$BUILD_DIR" --libraries "$LIB_DIR" "$SKETCH" | tee build.log
 
-used=$(grep "Global variables use" build.log | awk '{print $5}')
-max=$(grep "Global variables use" build.log | awk '{print $10}')
+used=$(grep -oP 'Global variables use \K\d+' build.log)
+max=$(grep -oP 'Global variables use.*Maximum is \K\d+' build.log)
 percent=$((used * 100 / max))
 echo "Dynamic memory usage: ${percent}%"
 if [ "$percent" -ge 95 ]; then
